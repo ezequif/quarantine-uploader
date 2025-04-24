@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quarantine Upload Portal</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+    }
+    h2 {
+      text-align: center;
+      color: #1a73e8;
+      margin-bottom: 25px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 5px;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    textarea {
+      resize: vertical;
+    }
+    #preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .preview-item {
+      position: relative;
+    }
+    .preview-item img {
+      height: 90px;
+      border-radius: 8px;
+      border: 2px solid #ddd;
+      cursor: pointer;
+    }
+    .remove-btn {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: red;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      background: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    #status {
+      margin-top: 15px;
+      font-weight: bold;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>Upload Quarantine Item</h2>
+    
+    <div class="form-group">
+      <label>Item Number</label>
+      <input type="text" id="itemNumber" required>
+    </div>
+
+    <div class="form-group">
+      <label>Quantity</label>
+      <input type="text" id="quantity" required>
+    </div>
+
+    <div class="form-group">
+      <label>Lot Number</label>
+      <input type="text" id="lotNumber" required>
+    </div>
+
+    <div class="form-group">
+      <label>Reason</label>
+      <select id="reason" required>
+        <option value="">Select Reason</option>
+        <option>QC Failed</option>
+        <option>Damaged</option>
+        <option>Suspicion of Contamination</option>
+        <option>Expired</option>
+        <option>Other</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Notes (Optional)</label>
+      <textarea id="notes" rows="3" placeholder="Add any details..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Upload Photos</label>
+      <input type="file" id="photoInput" multiple accept="image/*" />
+      <div id="preview"></div>
+    </div>
+
+    <button onclick="submitForm()">Submit</button>
+    <div id="status"></div>
+  </div>
+
+  <script>
+    let selectedFiles = [];
+
+    document.getElementById('photoInput').addEventListener('change', function (e) {
+      selectedFiles = Array.from(e.target.files);
+      renderPreviews();
+    });
+
+    function renderPreviews() {
+      const preview = document.getElementById('preview');
+      preview.innerHTML = '';
+      selectedFiles.forEach((file, index) => {
+        const imgURL = URL.createObjectURL(file);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'preview-item';
+
+        const img = document.createElement('img');
+        img.src = imgURL;
+        img.onclick = () => window.open(img.src, '_blank');
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-btn';
+        removeBtn.innerText = '×';
+        removeBtn.onclick = () => {
+          selectedFiles.splice(index, 1);
+          renderPreviews();
+        };
+
+        wrapper.appendChild(img);
+        wrapper.appendChild(removeBtn);
+        preview.appendChild(wrapper);
+      });
+    }
+
+    async function submitForm() {
+      const status = document.getElementById('status');
+      status.textContent = "Uploading...";
+
+      const itemNumber = document.getElementById('itemNumber').value.trim();
+      const quantity = document.getElementById('quantity').value.trim();
+      const lotNumber = document.getElementById('lotNumber').value.trim();
+      const reason = document.getElementById('reason').value.trim();
+      const notes = document.getElementById('notes').value.trim();
+
+      if (!itemNumber || !quantity || !lotNumber || !reason) {
+        status.textContent = "Please fill in all required fields.";
+        return;
+      }
+
+      const images = await Promise.all(
+        selectedFiles.map(file => {
+          return new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(file);
+          });
+        })
+      );
+
+      const payload = {
+        itemNumber,
+        quantity,
+        lotNumber,
+        reason,
+        notes,
+        images
+      };
+
+      fetch("https://script.google.com/macros/s/AKfycbzWHdcDnTOKRZgJuBukvhjAr_IMG2OZzk5O1M2T7hCA4y4tDy8hCEU7WqYbzahorLHLlA/exec", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }).then(res => res.json())
+        .then(response => {
+          if (response.status === "success") {
+            status.textContent = "✅ Upload successful!";
+            document.querySelector("form")?.reset();
+            selectedFiles = [];
+            document.getElementById("preview").innerHTML = '';
+          } else {
+            status.textContent = "❌ Error: " + response.message;
+          }
+        }).catch(err => {
+          console.error(err);
+          status.textContent = "❌ Upload failed. Check console for details.";
+        });
+    }
+  </script>
+
+</body>
+</html>
